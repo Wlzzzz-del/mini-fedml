@@ -9,17 +9,19 @@ class Server:
                  num_glob_iters, local_epochs, optimizer,num_users, times):
 
         # Set up the main attributes
-        self.device = device
-        self.dataset = dataset
-        self.num_glob_iters = num_glob_iters
-        self.local_epochs = local_epochs
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.total_train_samples = 0
-        self.model = copy.deepcopy(model)
-        self.users = []
-        self.selected_users = []
-        self.num_users = num_users
+        self.device = device # 显卡设备
+        self.dataset = dataset # 数据集
+        self.num_glob_iters = num_glob_iters # 聚合的次数
+        self.local_epochs = local_epochs # Client本地计算的次数
+        self.batch_size = batch_size # Client的batch_size
+        self.learning_rate = learning_rate # Client 的learning rate
+        self.total_train_samples = 0 # 总训练样本数量
+        self.model = copy.deepcopy(model) # 模型
+        self.users = [] # 用户列表
+        self.selected_users = []# 某轮中被选中的用户
+        self.num_users = num_users # 用户总数
+
+        # 以下属于personnalized federal learning部分,留作以后拓展
         self.beta = beta
         self.lamda = lamda
         self.algorithm = algorithm
@@ -90,3 +92,47 @@ class Server:
         num_users = min(num_users, len(self.users))
         #np.random.seed(round)
         return np.random.choice(self.users, num_users, replace=False) #, p=pk)
+
+    def evaluate(self):
+        stats = self.test()  
+        stats_train = self.train_error_and_loss()
+        glob_acc = np.sum(stats[2])*1.0/np.sum(stats[1])
+        train_acc = np.sum(stats_train[2])*1.0/np.sum(stats_train[1])
+        # train_loss = np.dot(stats_train[3], stats_train[1])*1.0/np.sum(stats_train[1])
+        train_loss = sum([x * y for (x, y) in zip(stats_train[1], stats_train[3])]).item() / np.sum(stats_train[1])
+        self.rs_glob_acc.append(glob_acc)
+        self.rs_train_acc.append(train_acc)
+        self.rs_train_loss.append(train_loss)
+        #print("stats_train[1]",stats_train[3][0])
+        print("Average Global Accurancy: ", glob_acc)
+        print("Average Global Trainning Accurancy: ", train_acc)
+        print("Average Global Trainning Loss: ",train_loss)
+
+    def test(self):
+        '''tests self.latest_model on given clients
+        '''
+        num_samples = []
+        tot_correct = []
+        losses = []
+        for c in self.users:
+            ct, ns = c.test()
+            tot_correct.append(ct*1.0)
+            num_samples.append(ns)
+        ids = [c.id for c in self.users]
+
+        return ids, num_samples, tot_correct
+
+    def train_error_and_loss(self):
+        num_samples = []
+        tot_correct = []
+        losses = []
+        for c in self.users:
+            ct, cl, ns = c.train_error_and_loss() 
+            tot_correct.append(ct*1.0)
+            num_samples.append(ns)
+            losses.append(cl*1.0)
+        
+        ids = [c.id for c in self.users]
+        #groups = [c.group for c in self.clients]
+
+        return ids, num_samples, tot_correct, losses

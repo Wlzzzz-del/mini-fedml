@@ -13,21 +13,21 @@ class User:
     """
     def __init__(self, device, id, train_data, test_data, model, batch_size = 0, learning_rate = 0, beta = 0 , lamda = 0, local_epochs = 0):
 
-        self.device = device
-        self.model = copy.deepcopy(model)
+        self.device = device # 算力设备
+        self.model = copy.deepcopy(model) # 拷贝模型
         self.id = id  # integer
-        self.train_samples = len(train_data)
-        self.test_samples = len(test_data)
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
+        self.train_samples = len(train_data)# 总的训练样本长度
+        self.test_samples = len(test_data) # 总的测试样本长度
+        self.batch_size = batch_size # 每个batch的训练样本数量
+        self.learning_rate = learning_rate # 学习率
         self.beta = beta
         self.lamda = lamda
-        self.local_epochs = local_epochs
-        self.trainloader = DataLoader(train_data, self.batch_size)
-        self.testloader =  DataLoader(test_data, self.batch_size)
-        self.testloaderfull = DataLoader(test_data, self.test_samples)
+        self.local_epochs = local_epochs # 本地Client的循环次数
+        self.trainloader = DataLoader(train_data, self.batch_size) # batchsize = batch_size的训练集DataLoader
+        self.testloader =  DataLoader(test_data, self.batch_size) # 测试集DataLoader
+        self.testloaderfull = DataLoader(test_data, self.test_samples) # batchsize = 全部样本长度的测试集DataLoader
         self.trainloaderfull = DataLoader(train_data, self.train_samples)
-        self.iter_trainloader = iter(self.trainloader)
+        self.iter_trainloader = iter(self.trainloader) # 利用iter返回DataLoader的迭代器对象，可以直接使用next进行迭代
         self.iter_testloader = iter(self.testloader)
 
         # those parameters are for persionalized federated learing.
@@ -152,7 +152,29 @@ class User:
     def load_model(self):
         model_path = os.path.join("models", self.dataset)
         self.model = torch.load(os.path.join(model_path, "server" + ".pt"))
-    
+
     @staticmethod
     def model_exists():
         return os.path.exists(os.path.join("models", "server" + ".pt"))
+
+    def test(self):
+        self.model.eval()
+        test_acc = 0
+        for x, y in self.testloaderfull:
+            x, y = x.to(self.device) ,y.to(self.device)
+            output = self.model(x)
+            test_acc += (torch.sum(torch.argmax(output, dim=1) == y)).item()
+        return test_acc, y.shape[0]
+
+    def train_error_and_loss(self):
+        self.model.eval()
+        train_acc = 0
+        loss = 0
+        for x, y in self.trainloaderfull:
+            x, y = x.to(self.device), y.to(self.device)
+            output = self.model(x)
+            train_acc += (torch.sum(torch.argmax(output, dim=1) == y)).item()
+            loss += self.loss(output, y)
+            #print(self.id + ", Train Accuracy:", train_acc)
+            #print(self.id + ", Train Loss:", loss)
+        return train_acc, loss , self.train_samples

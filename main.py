@@ -33,4 +33,5 @@ if model == "cnn":
         model = Net().to(device), model
     if(dataset == "Cifar10"):
         model = CNNCifar(10).to(device), model
-Server_Avg(device, dataset, algorithm, model, batch_size, learning_rate, beta, lamda, num_global_iters, local_epochs, optimizer, numusers, times)
+avg = Server_Avg(device, dataset, algorithm, model, batch_size, learning_rate, beta, lamda, num_global_iters, local_epochs, optimizer, numusers, times)
+avg.train()
