@@ -38,3 +38,17 @@ class Server_Avg(Server):
 
         # 创建用户
         pass
+
+
+    def train(self):
+        loss = []
+        for glob_iter in range(self.num_glob_iters):
+            print("---------------ROUND NUMBER:",glob_iter,"----------------")
+            self.send_parameters()
+
+            self.evaluate()
+            self.selected_users = self.select_users(glob_iter, self.num_users)
+            for user in self.select_users:
+                user.train(self.local_epochs)
+            self.aggregate_parameters()
+        self.save_model()
